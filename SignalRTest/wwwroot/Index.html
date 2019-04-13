@@ -1,0 +1,147 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title></title>
+    <style>
+        body {
+            position: relative;
+        }
+
+        .role {
+            position: absolute;
+        }
+
+        .role, img {
+            width: 150px;
+            height: 150px;
+        }
+
+            .role > p {
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                background: rgba(102, 102, 102, 0.73);
+                color: red;
+                overflow: hidden;
+                text-align: center;
+                width: 100%;
+            }
+
+        #content {
+            width: 200px;
+            height: 200px;
+            overflow-y: scroll
+        }
+    </style>
+</head>
+
+<body>
+    <div>
+        <div id="clone_role" class="role" style="display: none;">
+            <p>克隆对象</p>
+            <img src="role1.jpg" />
+        </div>
+        <input type="text" name="name"    id="userName" placeholder="你的名称！" />
+        <button id="sendButton">开始测试</button>
+        <div id="content">
+            输入名称，点击开始进行测试。随后随便点击屏幕。
+        </div>
+    </div> 
+    <script src="jquery-1.10.2.min.js"></script>
+    <script src="signalr.min.js"></script>
+    <script src="game.js"></script>
+    <script>
+        $(function () { 
+            var content = document.getElementById("content");//内容信息
+            var $body = $(document.body);//body容器
+            var userArray = new Array();//所有用户
+            var userPostion = { id: "", name: "", x: 0, y: 1, start: false }; //本人信息
+            var GameMain = {
+                //加载所有监听事件
+                load: function () {
+                    //状态更新
+                    MSG.reg("update", function (result) {
+                        var user = userArray[result.id];
+                        if (user) {
+                            user.img.style.left = result.x + "px";
+                            user.img.style.top = result.y + "px";
+                        }
+                    });
+                    //获取编号
+                    MSG.reg("GetId", function (result) {
+                        userPostion.id = result;
+                    });
+                    //获取当前连接所有用户
+                    MSG.reg("GetALLUser", function (result) {
+                        if (result) {
+                            for (var i = 0; i < result.length; i++) {
+                                GameMain.joinUser(result[i]);
+                            }
+                        }
+                    });
+                    //用户加入
+                    MSG.reg("add", function (result) {
+                        content.innerText += result.name + " ：用户加入";
+                        GameMain.joinUser(result);
+                    });
+                    //用户离开
+                    MSG.reg("level", function (result) {
+                        content.innerText += result.name + ":离开";
+                        GameMain.levelUser(result);
+                    });
+                },
+                //用户加入展示
+                joinUser: function (user) {
+                    userArray[user.id] = user;
+                    //克隆模板
+                    var clone = $("#clone_role").clone();
+                    clone.children("img").attr("src", user.role);
+                    clone.children("p").text(user.name);
+                    userArray[user.id].img = clone[0];
+                    $body.append(userArray[user.id].img);
+                    clone.slideDown(400);
+                },
+                //用户离开
+                levelUser: function (p) {
+                    var user = userArray[p.id];
+                    if (user) {
+                        document.body.removeChild(user.img);
+                        userArray[p.id] = undefined;
+                    }
+                },
+                //系统事件
+                sysEvent: function () {
+                    //点击发送坐标
+                    $(document).click(function (e) {
+                        userPostion.x = e.clientX;
+                        userPostion.y = e.clientY;
+                        if (userPostion.start) {
+                            MSG.send("UpdateSate", userPostion);
+                        }
+                    })
+                    //点击发送加入房间信息
+                    $("#sendButton").click(function () {
+                        if (MSG.isStart && !userPostion.start) {
+                            var userName = $("#userName").val();
+                            MSG.send("Join", { name: userName, value: "0" });
+                            userPostion.start = true;
+                        }
+                    })
+                }
+            };
+
+            //初始化函数
+            MSG.init("game");
+            //加载消息监听及系统事件
+            GameMain.load();
+            GameMain.sysEvent();
+            //启动消息
+            MSG.start().then(function () {
+                MSG.send("GetId", { name: "0", value: "0" });
+                MSG.send("GetALLUser", { name: "0", value: "0" });
+            });
+        })
+    </script>
+</body>
+</html>
